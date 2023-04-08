@@ -24,13 +24,13 @@ FeatureScatter(gaba_b1_0hr.seurat.obj, feature1 = "nCount_RNA", feature2 = "nFea
 
 # 2. Filtering -----------------
 gaba_b1_0hr.seurat.obj <- subset(gaba_b1_0hr.seurat.obj, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & 
-                            percent.mt < 5)
+                                   percent.mt < 5)
 
 # 3. Normalize data ----------
 #gaba_b1_0hr.seurat.obj <- NormalizeData(gaba_b1_0hr.seurat.obj, normalization.method = "LogNormalize", scale.factor = 10000)
 # OR
 gaba_b1_0hr.seurat.obj <- NormalizeData(gaba_b1_0hr.seurat.obj)
-str(gaba_b1_0hr.seurat.objgaba.seurat.obj)
+str(gaba_b1_0hr.seurat.obj)
 
 
 # 4. Identify highly variable features --------------
@@ -66,14 +66,14 @@ ElbowPlot(gaba_b1_0hr.seurat.obj)
 gaba_b1_0hr.seurat.obj <- FindNeighbors(gaba_b1_0hr.seurat.obj, dims = 1:15)
 
 # understanding resolution
-gaba_b1_0hr.seurat.obj <- FindClusters(gaba_b1_0hr.seurat.obj, resolution = c(0.1,0.3, 0.5, 0.7, 1))
+gaba_b1_0hr.seurat.obj <- FindClusters(gaba_b1_0hr.seurat.obj, resolution = c(0.1,0.3, 0.5, 0.6, 0.7, 1))
 View(gaba_b1_0hr.seurat.obj@meta.data)
 
-DimPlot(gaba_b1_0hr.seurat.obj, group.by = "RNA_snn_res.0.7", label = TRUE)
+DimPlot(gaba_b1_0hr.seurat.obj, group.by = "RNA_snn_res.0.6", label = TRUE)
 
 # setting identity of clusters
 Idents(gaba_b1_0hr.seurat.obj)
-Idents(gaba_b1_0hr.seurat.obj) <- "RNA_snn_res.0.7"
+Idents(gaba_b1_0hr.seurat.obj) <- "RNA_snn_res.0.6"
 Idents(gaba_b1_0hr.seurat.obj)
 
 # non-linear dimensionality reduction --------------
@@ -91,9 +91,22 @@ write.table(as.matrix(GetAssayData(object = gaba_b1_0hr.seurat.obj, slot = "data
 cluster0.markers <- FindMarkers(gaba_b1_0hr.seurat.obj, ident.1 = 0, min.pct = 0.25)
 head(cluster0.markers, n = 10)
 
-# find all markers distinguishing cluster 4 from clusters 6 and 5
-cluster4.markers <- FindMarkers(gaba_b1_0hr.seurat.obj, ident.1 = 4, ident.2 = c(6, 5), min.pct = 0.25)
+# find all markers distinguishing cluster 9 from clusters 1 and 7
+cluster4.markers <- FindMarkers(gaba_b1_0hr.seurat.obj, ident.1 = 9, ident.2 = c(1, 7), min.pct = 0.25)
 head(cluster4.markers, n = 10)
 
 #UMAP Showing where in clusters specific genes are located
-FeaturePlot(gaba_b1_0hr.seurat.obj, features = c("SLC17A7", "GAD1", "GAD2", "CUX2", "RORB", "SCN8A", "THEMIS", "FEZF2", "SST", "ID2"))
+FeaturePlot(gaba_b1_0hr.seurat.obj, features = c("SPARC", "VIM", "EYA4", "DLX1", "NKX2-1", "LHX6", "DCX", "MAP2", "SOX2"))
+
+#Look at cell cycle scoring of each cell
+data <- CellCycleScoring(gaba_b1_0hr.seurat.obj, s.features = cc.genes.updated.2019$s.genes, g2m.features = cc.genes.updated.2019$g2m.genes, set.ident = TRUE)
+view(data)
+
+#Graph # of cells in each phase
+as_tibble(data[[]]) %>%
+  ggplot(aes(Phase)) + geom_bar()
+
+as_tibble(data[[]]) %>%
+  ggplot(aes(x=S.Score, y=G2M.Score, color=Phase)) + 
+  geom_point() +
+  coord_cartesian(xlim=c(-0.15,0.15), ylim=c(-0.15,0.15))
