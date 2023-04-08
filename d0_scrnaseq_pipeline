@@ -1,0 +1,124 @@
+# load libraries
+library(dplyr)
+library(magrittr)
+library(Seurat)
+library(tidyverse)
+
+# Creating Seurat object with files output from CellRanger < 3.0
+data_dir <- '~/bscr/'
+list.files(data_dir) # Should show barcodes.tsv, genes.tsv, and matrix.mtx
+expression_matrix <- Read10X(data.dir = data_dir)
+d0.seurat.object = CreateSeuratObject(counts = expression_matrix)
+
+# 1. QC -------
+View(d0.seurat.object)
+# % MT reads
+d0.seurat.object[["percent.mt"]] <- PercentageFeatureSet(d0.seurat.object, pattern = "^MT-")
+View(d0.seurat.object@meta.data)
+
+VlnPlot(d0.seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+FeatureScatter(d0.seurat.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA") +
+  geom_smooth(method = 'lm')
+
+# 2. Filtering -----------------
+d0.seurat.object <- subset(d0.seurat.object, subset = nFeature_RNA > 200 & 
+                                   percent.mt < 30)
+
+# 3. Normalize data ----------
+#d0.seurat.object <- NormalizeData(d0.seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+# OR
+d0.seurat.object <- NormalizeData(d0.seurat.object)
+str(d0.seurat.object)
+
+
+# 4. Identify highly variable features --------------
+d0.seurat.object <- FindVariableFeatures(d0.seurat.object, selection.method = "vst", nfeatures = 2000)
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(d0.seurat.object), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(d0.seurat.object)
+LabelPoints(plot = plot1, points = top10, repel = TRUE)
+
+
+# 5. Scaling -------------
+all.genes <- rownames(d0.seurat.object)
+d0.seurat.object <- ScaleData(d0.seurat.object, features = all.genes)
+
+str(d0.seurat.object)
+
+# 6. Perform Linear dimensionality reduction --------------
+d0.seurat.object <- RunPCA(d0.seurat.object, features = VariableFeatures(object = d0.seurat.object))
+
+# visualize PCA results
+print(d0.seurat.object[["pca"]], dims = 1:5, nfeatures = 5)
+DimHeatmap(d0.seurat.object, dims = 1, cells = 500, balanced = TRUE)
+
+
+# determine dimensionality of the data
+ElbowPlot(d0.seurat.object)
+
+
+# 7. Clustering ------------
+d0.seurat.object <- FindNeighbors(d0.seurat.object, dims = 1:20)
+
+# understanding resolution
+d0.seurat.object <- FindClusters(d0.seurat.object, resolution = c(0.1,0.3, 0.5, 0.6, 0.7, 1))
+View(d0.seurat.object@meta.data)
+
+DimPlot(d0.seurat.object, group.by = "RNA_snn_res.0.6", label = TRUE)
+
+# setting identity of clusters
+Idents(d0.seurat.object)
+Idents(d0.seurat.object) <- "RNA_snn_res.0.6"
+Idents(d0.seurat.object)
+
+# non-linear dimensionality reduction --------------
+# If you haven't installed UMAP, you can do so via reticulate::py_install(packages =
+# 'umap-learn')
+d0.seurat.object <- RunUMAP(d0.seurat.object, dims = 1:20, label = TRUE)
+# note that you can set `label = TRUE` or use the LabelClusters function to help label
+# individual clusters
+DimPlot(d0.seurat.object, reduction = "umap", label = TRUE)
+
+# Identify genes in UMAP clusters
+cluster0.markers <- FindMarkers(d0.seurat.object, ident.1 = 0, min.pct = 0.25)
+head(cluster0.markers, n = 10)
+
+cluster1.markers <- FindMarkers(d0.seurat.object, ident.1 = 1, min.pct = 0.25)
+head(cluster1.markers, n = 10)
+
+cluster2.markers <- FindMarkers(d0.seurat.object, ident.1 = 2, min.pct = 0.25)
+head(cluster2.markers, n = 10)
+
+cluster3.markers <- FindMarkers(d0.seurat.object, ident.1 = 3, min.pct = 0.25)
+head(cluster3.markers, n = 10)
+
+cluster4.markers <- FindMarkers(d0.seurat.object, ident.1 = 4, min.pct = 0.25)
+head(cluster4.markers, n = 10)
+
+
+# find all markers distinguishing cluster 2 from clusters 1 and 4
+cluster2diff.markers <- FindMarkers(d0.seurat.object, ident.1 = 2, ident.2 = c(1, 4), min.pct = 0.25)
+head(cluster2diff.markers, n = 10)
+
+#UMAP Showing where in clusters specific genes are located
+FeaturePlot(d0.seurat.object, features = c("POU5F1", "NANOG", "SOX2", "PAX6", "FOXG1", "DCX", "OTX2", "MAP2", "NES", "NEUROD1", "TUBB3"))
+
+
+# A list of cell cycle markers, from Tirosh et al, 2015, is loaded with Seurat.  We can
+# segregate this list into markers of G2/M phase and markers of S phase
+s.genes <- cc.genes$s.genes
+g2m.genes <- cc.genes$g2m.genes
+cellcycle <- CellCycleScoring(d0.seurat.object, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+
+# view cell cycle scores and phase assignments
+head(cellcycle[[]])
+
+# Visualize the distribution of cell cycle markers across
+RidgePlot(cellcycle, features = c("PCNA", "TOP2A", "MCM6", "MKI67"), ncol = 2)
+
+# Running a PCA on cell cycle
+cellcycle <- RunPCA(cellcycle, features = c(s.genes, g2m.genes))
+DimPlot(d0.seurat.object)
